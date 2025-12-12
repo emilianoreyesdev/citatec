@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "756004166796",
+    "project_id": "flutter-app-2bade",
+    "storage_bucket": "flutter-app-2bade.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:756004166796:android:e5db89bcbddbf4ed49afa9",
+        "android_client_info": {
+          "package_name": "com.example.citatec"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBi_DfQgAn5b8BTsJAgbeJ8XZEMW1RRNhE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
