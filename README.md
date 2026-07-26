@@ -1,3 +1,32 @@
+# Citatec
+
+Aplicación multiplataforma desarrollada como proyecto académico en equipo para facilitar la gestión de citas y trámites dentro del Instituto Tecnológico de Iguala.
+
+## Mi participación
+
+Participé en el desarrollo de la interfaz, integración de funcionalidades y pruebas del sistema.
+
+## Funcionalidades principales
+
+- Inicio de sesión con Firebase.
+- Roles de administrador y usuario.
+- Gestión de citas.
+- Consulta de departamentos y trámites.
+- Panel administrativo.
+- Persistencia de datos con Cloud Firestore.
+
+## Tecnologías utilizadas
+
+- Flutter
+- Dart
+- Firebase Authentication
+- Cloud Firestore
+- Git y GitHub
+
+## Trabajo colaborativo
+
+Este proyecto fue desarrollado en equipo como parte de una actividad académica.
+
 # Citatec11 - Documentación para Desarrolladores
 
 Este documento sirve como guía técnica para entender la estructura, funcionamiento y lógica detrás de la aplicación **Citatec**. Está diseñado para ayudar a nuevos programadores a familiarizarse rápidamente con el código.
