@@ -12,6 +12,33 @@ class CitaPage extends StatefulWidget {
 
 class _CitaPageState extends State<CitaPage> {
   int currentStep = 0;
+  bool _isSubmitting = false;
+
+  // Mantener los streams estables entre reconstrucciones del widget.
+  // Si se crean dentro de build(), cada clic puede reiniciar su estado
+  // a waiting y deshabilitar temporalmente todas las horas.
+  final FirestoreService _firestoreService = FirestoreService();
+  late final Stream<QuerySnapshot> _departamentosStream;
+  final Map<String, Stream<bool>> _horariosStreams = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _departamentosStream = _firestoreService.getDepartamentos();
+  }
+
+  Stream<bool> _streamHorario(String hora) {
+    final departamento = selectedDepartment!;
+    final fecha = selectedDate!;
+    return _horariosStreams.putIfAbsent(
+      hora,
+      () => _firestoreService.observarHorarioOcupado(
+        departamento,
+        fecha,
+        hora,
+      ),
+    );
+  }
 
   // Variables para almacenar la selección
   String? selectedDepartment;
@@ -42,7 +69,7 @@ class _CitaPageState extends State<CitaPage> {
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirestoreService().getDepartamentos(),
+        stream: _departamentosStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
              return Center(child: Text('Error: ${snapshot.error}'));
@@ -74,8 +101,9 @@ class _CitaPageState extends State<CitaPage> {
                     });
                   }
                 } else {
-                  // Confirmar cita
-                  confirmarCita();
+                  if (!_isSubmitting && validateCurrentStep()) {
+                    confirmarCita();
+                  }
                 }
               },
               onStepCancel: () {
@@ -100,7 +128,7 @@ class _CitaPageState extends State<CitaPage> {
                       if (currentStep > 0) const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: details.onStepContinue,
+                          onPressed: _isSubmitting ? null : details.onStepContinue,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
@@ -156,6 +184,8 @@ class _CitaPageState extends State<CitaPage> {
                             onTap: () {
                               setState(() {
                                 selectedDepartment = department;
+                                selectedTime = null;
+                                _horariosStreams.clear();
                                 selectedService = null; // Reset service
                               });
                             },
@@ -278,21 +308,37 @@ class _CitaPageState extends State<CitaPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: availableTimes.map((time) {
-                          return _buildTimeChip(
-                            time: time,
-                            isSelected: selectedTime == time,
-                            onTap: () {
-                              setState(() {
-                                selectedTime = time;
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
+                      if (selectedDepartment != null && selectedDate != null)
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: availableTimes.map((time) {
+                            return StreamBuilder<bool>(
+                              key: ValueKey('${selectedDepartment}_${selectedDate!.year}_${selectedDate!.month}_${selectedDate!.day}_$time'),
+                              stream: _streamHorario(time),
+                              builder: (context, horarioSnapshot) {
+                                final cargando = horarioSnapshot.connectionState == ConnectionState.waiting;
+                                final error = horarioSnapshot.hasError;
+                                final ocupado = horarioSnapshot.data ?? false;
+                                final bloqueado = cargando || error || ocupado;
+                                if (bloqueado && selectedTime == time) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (mounted && selectedTime == time) {
+                                      setState(() => selectedTime = null);
+                                    }
+                                  });
+                                }
+                                return _buildTimeChip(
+                                  time: time,
+                                  isSelected: selectedTime == time && !bloqueado,
+                                  isDisabled: bloqueado,
+                                  subtitle: error ? 'Sin conexión' : cargando ? 'Consultando' : ocupado ? 'Ocupado' : null,
+                                  onTap: () => setState(() => selectedTime = time),
+                                );
+                              },
+                            );
+                          }).toList(),
+                        ),
                     ],
                   ),
                 ),
@@ -319,7 +365,7 @@ class _CitaPageState extends State<CitaPage> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? color.withOpacity(0.1)
+              ? color.withValues(alpha: 0.1)
               : Theme.of(context).colorScheme.primary,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -332,7 +378,7 @@ class _CitaPageState extends State<CitaPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 28),
@@ -368,7 +414,7 @@ class _CitaPageState extends State<CitaPage> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.blue.withOpacity(0.1)
+              ?  Colors.blue.withValues(alpha: 0.1)
               : Theme.of(context).colorScheme.primary,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -406,28 +452,31 @@ class _CitaPageState extends State<CitaPage> {
     required String time,
     required bool isSelected,
     required VoidCallback onTap,
+    bool isDisabled = false,
+    String? subtitle,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: isDisabled ? null : onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.blue
-              : Theme.of(context).colorScheme.primary,
+          color: isDisabled
+              ? Colors.grey.withValues(alpha: 0.16)
+              : isSelected ? Colors.blue : Theme.of(context).colorScheme.primary,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? Colors.blue : Colors.grey.shade400,
           ),
         ),
-        child: Text(
-          time,
-          style: TextStyle(
-            color: isSelected
-                ? Colors.white
-                : Theme.of(context).colorScheme.inversePrimary,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(time, style: TextStyle(
+              color: isDisabled ? Colors.grey : isSelected ? Colors.white : Theme.of(context).colorScheme.inversePrimary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            )),
+            if (subtitle != null) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          ],
         ),
       ),
     );
@@ -449,9 +498,12 @@ class _CitaPageState extends State<CitaPage> {
         );
       },
     );
+    if (!mounted) return;
     if (picked != null && picked != selectedDate) {
       setState(() {
         selectedDate = picked;
+        selectedTime = null;
+        _horariosStreams.clear();
       });
     }
   }
@@ -494,93 +546,109 @@ class _CitaPageState extends State<CitaPage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.orange,
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
 
-  // Confirmar cita
-  void confirmarCita() async {
-    // Show loading indicator
-    showDialog(
+  // Confirmar una cita sin permitir envíos duplicados.
+  Future<void> confirmarCita() async {
+    if (_isSubmitting) return;
+
+    final user = AuthService().currentUser;
+    final departamento = selectedDepartment;
+    final servicio = selectedService;
+    final fecha = selectedDate;
+    final hora = selectedTime;
+
+    if (user == null || user.email == null) {
+      _showSnackBar('Debes iniciar sesión con un correo válido.');
+      return;
+    }
+    if (departamento == null || servicio == null || fecha == null || hora == null) {
+      _showSnackBar('Completa todos los datos de la cita.');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
+    String? mensajeError;
     try {
-      final user = AuthService().currentUser;
-      if (user == null) {
-        Navigator.pop(context); // Close loading
-        _showSnackBar('Error: No has iniciado sesión');
-        return;
-      }
-
-      final citaData = {
+      await FirestoreService().createCita({
         'userId': user.uid,
-        'userName': user.email ?? 'Usuario desconocido', // Agregar email para admin
-        'departamento': selectedDepartment,
-        'servicio': selectedService,
-        'fecha': Timestamp.fromDate(selectedDate!),
-        'hora': selectedTime,
+        'userName': user.email!,
+        'departamento': departamento,
+        'servicio': servicio,
+        'fecha': Timestamp.fromDate(DateTime.utc(fecha.year, fecha.month, fecha.day)),
+        'hora': hora,
         'estado': 'Activa',
         'created_at': FieldValue.serverTimestamp(),
-      };
-
-      await FirestoreService().createCita(citaData);
-
-      Navigator.pop(context); // Close loading
-
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Row(
-              children: const [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
-                SizedBox(width: 10),
-                Text('Cita Confirmada'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tu cita ha sido agendada exitosamente:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 15),
-                _buildDetailRow(
-                  Icons.business,
-                  'Departamento',
-                  selectedDepartment!,
-                ),
-                _buildDetailRow(Icons.description, 'Servicio', selectedService!),
-                _buildDetailRow(
-                  Icons.calendar_today,
-                  'Fecha',
-                  '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
-                ),
-                _buildDetailRow(Icons.access_time, 'Hora', selectedTime!),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).pop(); // Go back to home
-                },
-                child: const Text('Aceptar'),
-              ),
-            ],
-          );
-        },
-      );
-    } catch (e) {
-      Navigator.pop(context); // Close loading
-      _showSnackBar('Error al agendar cita: ${e.toString()}');
+      });
+    } on HorarioOcupadoException {
+      mensajeError = 'Horario no disponible. Selecciona otra hora o fecha.';
+    } on FirebaseException catch (e) {
+      // Se mantiene el detalle tecnico en la terminal, no en la interfaz.
+      debugPrint('Error de Firebase al agendar: ${e.code} - ${e.message}');
+      mensajeError = e.code == 'permission-denied'
+          ? 'No se pudo autorizar la reserva. Revisa tu sesion o contacta soporte.'
+          : 'No se pudo agendar la cita. Intentalo de nuevo.';
+    } catch (e, stackTrace) {
+      debugPrint('Error inesperado al agendar: $e\n$stackTrace');
+      mensajeError = 'No se pudo completar la reserva. Intentalo de nuevo.';
     }
+
+    if (!mounted) return;
+
+    // Cierra únicamente el diálogo de carga.
+    Navigator.of(context, rootNavigator: true).pop();
+    setState(() => _isSubmitting = false);
+
+    if (mensajeError != null) {
+      _showSnackBar(mensajeError);
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 10),
+            Text('Cita Confirmada'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tu cita ha sido agendada exitosamente:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            _buildDetailRow(Icons.business, 'Departamento', departamento),
+            _buildDetailRow(Icons.description, 'Servicio', servicio),
+            _buildDetailRow(Icons.calendar_today, 'Fecha',
+                '${fecha.day}/${fecha.month}/${fecha.year}'),
+            _buildDetailRow(Icons.access_time, 'Hora', hora),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // Regresa a la pantalla anterior.
   }
 
   // Widget para detalles en el diálogo

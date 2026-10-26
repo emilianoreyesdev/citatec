@@ -1,4 +1,7 @@
+
+# ==========================================
 # Miscellaneous
+# ==========================================
 *.class
 *.log
 *.pyc
@@ -12,18 +15,24 @@
 .swiftpm/
 migrate_working_dir/
 
+# ==========================================
 # IntelliJ related
+# ==========================================
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# ==========================================
+# Visual Studio Code
+# ==========================================
+# Las configuraciones de VS Code pueden
+# compartirse con el equipo.
 #.vscode/
 
-# Flutter/Dart/Pub related
+# ==========================================
+# Flutter / Dart / Pub
+# ==========================================
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -33,13 +42,52 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Symbolication related
+# ==========================================
+# Symbolication
+# ==========================================
 app.*.symbols
 
-# Obfuscation related
+# ==========================================
+# Obfuscation
+# ==========================================
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# ==========================================
+# Android build artifacts
+# ==========================================
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+
+# ==========================================
+# Firebase Emulator
+# ==========================================
+.firebase/
+emulator-data/
+
+# Copias temporales de reglas
+firestore.rules.backup
+
+# ==========================================
+# Node.js / Security Tests
+# ==========================================
+security-tests/node_modules/
+security-tests/coverage/
+security-tests/npm-debug.log*
+
+# ==========================================
+# Archivos locales de herramientas IA
+# ==========================================
+.agents/
+
+# ==========================================
+# Archivos de entorno y credenciales
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+serviceAccountKey.json
+*service-account*.json

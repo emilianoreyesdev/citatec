@@ -1,0 +1,199 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    function citaPath(id) {
+      return /databases/$(database)/documents/citas/$(id);
+    }
+
+    function publicoPath(id) {
+      return /databases/$(database)/documents/disponibilidad_horarios/$(id);
+    }
+
+    function marcadoAfter(id) {
+      return existsAfter(publicoPath(id))
+        && getAfter(publicoPath(id)).data.keys().hasOnly(['ocupado'])
+        && getAfter(publicoPath(id)).data.ocupado == true;
+    }
+
+    function desmarcadoAfter(id) {
+      return !existsAfter(publicoPath(id));
+    }
+
+    function horarioPath(id) {
+      return /databases/$(database)/documents/horarios_ocupados/$(id);
+    }
+
+    function horarioId(d) {
+      return d.departamento + '|' + string(d.fecha.year()) + '|'
+        + string(d.fecha.month()) + '|' + string(d.fecha.day()) + '|'
+        + d.hora;
+    }
+
+    function validHour(d) {
+      return d.hora in [
+        '08:00 AM', '09:00 AM', '10:00 AM',
+        '11:00 AM', '12:00 PM', '01:00 PM',
+        '02:00 PM', '03:00 PM', '04:00 PM'
+      ];
+    }
+
+    function validDetails(d) {
+      return d.departamento is string
+        && d.departamento.size() > 0
+        && d.departamento.size() <= 200
+        && !d.departamento.matches('.*[|/].*')
+        && d.servicio is string
+        && d.servicio.size() > 0
+        && d.fecha is timestamp
+        && d.fecha == d.fecha.date()
+        && d.fecha > request.time
+        && validHour(d)
+        && d.horarioId is string
+        && d.horarioId == horarioId(d);
+    }
+
+    function sameHorario(h, c, citaId) {
+      return h.citaId == citaId
+        && h.userId == c.userId
+        && h.departamento == c.departamento
+        && h.fecha == c.fecha
+        && h.hora == c.hora;
+    }
+
+    function validHorarioData(h) {
+      return h.keys().hasAll(['citaId', 'userId', 'departamento', 'fecha', 'hora'])
+        && h.keys().hasOnly(['citaId', 'userId', 'departamento', 'fecha', 'hora']);
+    }
+
+    function reservedAfter(citaId, d) {
+      return existsAfter(horarioPath(d.horarioId))
+        && sameHorario(getAfter(horarioPath(d.horarioId)).data, d, citaId)
+        && marcadoAfter(d.horarioId);
+    }
+
+    function releasedAfter(d) {
+      return !existsAfter(horarioPath(d.horarioId))
+        && desmarcadoAfter(d.horarioId);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /departamentos/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /citas/{citaId} {
+      allow read: if signedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll([
+          'userId', 'userName', 'departamento', 'servicio',
+          'fecha', 'hora', 'estado', 'created_at', 'horarioId'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'userId', 'userName', 'departamento', 'servicio',
+          'fecha', 'hora', 'estado', 'created_at', 'horarioId'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userName == request.auth.token.email
+        && request.resource.data.estado == 'Activa'
+        && request.resource.data.created_at == request.time
+        && validDetails(request.resource.data)
+        && reservedAfter(citaId, request.resource.data);
+
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && resource.data.estado == 'Activa'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['fecha', 'hora', 'servicio', 'estado', 'horarioId'])
+        && (
+          (request.resource.data.estado == 'Cancelada'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['estado'])
+            && releasedAfter(resource.data))
+          ||
+          (request.resource.data.estado == 'Activa'
+            && validDetails(request.resource.data)
+            && reservedAfter(citaId, request.resource.data)
+            && (request.resource.data.horarioId == resource.data.horarioId
+                || releasedAfter(resource.data)))
+        );
+
+      allow delete: if false;
+    }
+
+    // Documentos sin datos de usuario: solo indicador booleano de ocupacion.
+    match /disponibilidad_horarios/{slotId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['ocupado'])
+        && request.resource.data.ocupado == true
+        && existsAfter(horarioPath(slotId))
+        && getAfter(horarioPath(slotId)).data.userId == request.auth.uid
+        && getAfter(citaPath(getAfter(horarioPath(slotId)).data.citaId)).data.estado == 'Activa'
+        && getAfter(citaPath(getAfter(horarioPath(slotId)).data.citaId)).data.horarioId == slotId;
+      allow update: if false;
+      allow delete: if signedIn()
+        && exists(horarioPath(slotId))
+        && get(horarioPath(slotId)).data.userId == request.auth.uid
+        && !existsAfter(horarioPath(slotId));
+    }
+
+    match /horarios_ocupados/{horarioIdDoc} {
+      // No exponemos citaId ni userId en la interfaz publica.
+      allow get: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && validHorarioData(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && existsAfter(citaPath(request.resource.data.citaId))
+        && getAfter(citaPath(request.resource.data.citaId)).data.estado == 'Activa'
+        && marcadoAfter(horarioIdDoc)
+        && getAfter(citaPath(request.resource.data.citaId)).data.horarioId == horarioIdDoc
+        && sameHorario(
+          request.resource.data,
+          getAfter(citaPath(request.resource.data.citaId)).data,
+          request.resource.data.citaId
+        );
+
+      allow update: if false;
+
+      allow delete: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && desmarcadoAfter(horarioIdDoc)
+        && existsAfter(citaPath(resource.data.citaId))
+        && getAfter(citaPath(resource.data.citaId)).data.userId == request.auth.uid
+        && (
+          getAfter(citaPath(resource.data.citaId)).data.estado == 'Cancelada'
+          || (
+            getAfter(citaPath(resource.data.citaId)).data.estado == 'Activa'
+            && getAfter(citaPath(resource.data.citaId)).data.horarioId != horarioIdDoc
+          )
+        );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -89,9 +89,7 @@ class _HistorialPageState extends State<HistorialPage> {
     final user = AuthService().currentUser;
 
     if (user == null) {
-      return Scaffold(
-        body: Center(child: Text('Por favor inicia sesión')),
-      );
+      return Scaffold(body: Center(child: Text('Por favor inicia sesión')));
     }
 
     return Scaffold(
@@ -163,8 +161,8 @@ class _HistorialPageState extends State<HistorialPage> {
                 final citasFiltradas = filtroSeleccionado == 'Todas'
                     ? citas
                     : citas
-                        .where((cita) => cita['estado'] == filtroSeleccionado)
-                        .toList();
+                          .where((cita) => cita['estado'] == filtroSeleccionado)
+                          .toList();
 
                 if (citasFiltradas.isEmpty) {
                   return _buildEmptyState();
@@ -255,14 +253,14 @@ class _HistorialPageState extends State<HistorialPage> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: estadoColor.withOpacity(0.3), width: 2),
+        side: BorderSide(color: estadoColor.withValues(alpha: 0.3), width: 2),
       ),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           gradient: LinearGradient(
             colors: [
-              estadoColor.withOpacity(0.05),
+              estadoColor.withValues(alpha: 0.05),
               Theme.of(context).colorScheme.primary,
             ],
             begin: Alignment.topLeft,
@@ -280,7 +278,7 @@ class _HistorialPageState extends State<HistorialPage> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: cita['color'].withOpacity(0.2),
+                      color: cita['color'].withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(cita['icon'], color: cita['color'], size: 24),
@@ -316,7 +314,7 @@ class _HistorialPageState extends State<HistorialPage> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: estadoColor.withOpacity(0.2),
+                      color: estadoColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: estadoColor, width: 1.5),
                     ),
@@ -431,7 +429,7 @@ class _HistorialPageState extends State<HistorialPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -522,7 +520,7 @@ class _HistorialPageState extends State<HistorialPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: cita['color'].withOpacity(0.2),
+                      color: cita['color'].withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(cita['icon'], color: cita['color'], size: 32),

@@ -1,6 +1,6 @@
-import 'package:citatec/components/MyButtton.dart';
+import 'package:citatec/components/my_button.dart';
 import 'package:citatec/services/auth_service.dart';
-import 'package:citatec/components/MyTextField.dart';
+import 'package:citatec/components/my_text_field.dart';
 import 'package:citatec/pages/Admin_page.dart';
 import 'package:citatec/pages/home_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +15,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   //controladores para los TextField
-  final TextEditingController NoController = TextEditingController();
+  final TextEditingController noController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
   // Variables para el dropdown de dominios
@@ -23,12 +23,12 @@ class _LoginPageState extends State<LoginPage> {
   final List<String> _domains = [
     '@gmail.com',
     '@iguala.edu.mx',
-    '@iguala.tecnm.mx'
+    '@iguala.tecnm.mx',
   ];
 
   void login(BuildContext context) async {
     //lógica de login aquí
-    String no = NoController.text.trim(); // Solo el usuario/número
+    String no = noController.text.trim(); // Solo el usuario/número
     String password = passwordController.text.trim();
 
     // Verificar que los campos no estén vacíos
@@ -104,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
                 //nombre de la app
                 const Text(' C I T A T E C ', style: TextStyle(fontSize: 20)),
                 const SizedBox(height: 50),
-                
+
                 // Row para usuario y dominio
                 Row(
                   children: [
@@ -113,29 +113,37 @@ class _LoginPageState extends State<LoginPage> {
                       child: MyTextField(
                         hintText: "Usuario / No. Control",
                         obscureText: false,
-                        controller: NoController,
+                        controller: noController,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.secondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                         border: Border.all(color: Theme.of(context).colorScheme.tertiary),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.tertiary,
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _selectedDomain,
                           icon: const Icon(Icons.arrow_drop_down),
                           elevation: 16,
-                          style: TextStyle(color: Theme.of(context).colorScheme.inversePrimary),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.inversePrimary,
+                          ),
                           onChanged: (String? newValue) {
                             setState(() {
                               _selectedDomain = newValue!;
                             });
                           },
-                          items: _domains.map<DropdownMenuItem<String>>((String value) {
+                          items: _domains.map<DropdownMenuItem<String>>((
+                            String value,
+                          ) {
                             return DropdownMenuItem<String>(
                               value: value,
                               child: Text(value),
@@ -146,7 +154,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                 ),
-            
+
                 //contraseña textfield
                 const SizedBox(height: 10),
                 MyTextField(
@@ -155,7 +163,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: passwordController,
                 ),
                 const SizedBox(height: 10),
-            
+
                 //olvide la contraseña
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:citatec/pages/login_page.dart';
 import 'package:citatec/pages/cita_page.dart';
 import 'package:citatec/pages/miscita_page.dart';
 import 'package:citatec/pages/historial_page.dart';
@@ -17,11 +19,34 @@ class HomePage extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.primary,
         elevation: 0,
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
+            tooltip: 'Mi cuenta',
             icon: const Icon(Icons.person),
-            onPressed: () {
-              // Navegar a perfil
+            onSelected: (value) {
+              if (value == 'logout') {
+                _confirmarCierreSesion(context);
+              }
             },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(
+                  FirebaseAuth.instance.currentUser?.email ?? 'Mi cuenta',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 20),
+                    SizedBox(width: 12),
+                    Text('Cerrar sesión'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -189,6 +214,50 @@ class HomePage extends StatelessWidget {
     );
   }
 
+  // Confirmar la salida y cerrar la sesión del usuario actual.
+  Future<void> _confirmarCierreSesion(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Deseas salir de tu cuenta de Citatec?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !context.mounted) return;
+
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!context.mounted) return;
+
+      // Elimina el historial de rutas de Flutter al regresar al login.
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => LoginPage()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo cerrar sesión: ${e.message ?? e.code}')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cerrar sesión. Inténtalo de nuevo.')),
+      );
+    }
+  }
+
   // Widget para el botón principal de acción
   Widget _buildMainActionButton(
     BuildContext context, {
@@ -204,7 +273,7 @@ class HomePage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: color, width: 2),
         ),
@@ -264,7 +333,7 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -275,7 +344,7 @@ class HomePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 32),
@@ -315,7 +384,7 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -329,7 +398,7 @@ class HomePage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: color, size: 28),
