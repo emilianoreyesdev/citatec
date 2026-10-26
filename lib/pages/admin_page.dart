@@ -1,3 +1,5 @@
+import 'package:citatec/services/auth_service.dart';
+import 'package:citatec/pages/login_page.dart';
 import 'package:citatec/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -34,8 +36,26 @@ class _AdminPageState extends State<AdminPage> {
           ),
           actions: [
             IconButton(
-              onPressed: () {
-                Navigator.of(context).pop();
+              tooltip: 'Cerrar sesión',
+              onPressed: () async {
+                try {
+                  await AuthService().signOut();
+                  if (!context.mounted) return;
+
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+                    (route) => false,
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo cerrar sesión. Inténtalo nuevamente.',
+                      ),
+                    ),
+                  );
+                }
               },
               icon: Icon(
                 Icons.logout,
