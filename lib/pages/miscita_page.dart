@@ -14,6 +14,14 @@ class MiCitaPage extends StatefulWidget {
 class _MiCitaPageState extends State<MiCitaPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
+  bool _operationInProgress = false;
+
+  DateTime _fechaUtc(DateTime fecha) => DateTime.utc(fecha.year, fecha.month, fecha.day);
+
+  DateTime _fechaCalendario(dynamic fecha) {
+    final value = fecha is Timestamp ? fecha.toDate().toUtc() : (fecha as DateTime).toUtc();
+    return DateTime(value.year, value.month, value.day);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +65,7 @@ class _MiCitaPageState extends State<MiCitaPage> {
                 final data = doc.data() as Map<String, dynamic>;
                 data['id'] = doc.id;
                 if (data['fecha'] is Timestamp) {
-                  data['fecha'] = (data['fecha'] as Timestamp).toDate();
+                  data['fecha'] = _fechaCalendario(data['fecha']);
                 }
                 // Determine icon and color based on department text (simple logic)
                 if (data['departamento'].toString().contains('Escolares')) {
@@ -151,7 +159,7 @@ class _MiCitaPageState extends State<MiCitaPage> {
           borderRadius: BorderRadius.circular(15),
           gradient: LinearGradient(
             colors: [
-              cita['color'].withOpacity(0.1),
+              (cita['color'] as Color).withValues(alpha: 0.1),
               Theme.of(context).colorScheme.primary,
             ],
             begin: Alignment.topLeft,
@@ -169,7 +177,7 @@ class _MiCitaPageState extends State<MiCitaPage> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: cita['color'].withOpacity(0.2),
+                      color: (cita['color'] as Color).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(cita['icon'], color: cita['color'], size: 28),
@@ -194,7 +202,7 @@ class _MiCitaPageState extends State<MiCitaPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.2),
+                            color: Colors.green.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -348,97 +356,89 @@ class _MiCitaPageState extends State<MiCitaPage> {
     );
   }
 
-  // Cambiar fecha y hora
+  // Cambiar fecha/hora respetando el formato de medianoche UTC del servicio.
   void _cambiarFechaHora(Map<String, dynamic> cita) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        DateTime nuevaFecha = cita['fecha'];
-        String nuevaHora = cita['hora'];
+    DateTime nuevaFecha = _fechaCalendario(cita['fecha']);
+    String nuevaHora = cita['hora'] as String;
 
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Cambiar Fecha y Hora'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(
-                      Icons.calendar_today,
-                      color: Colors.blue,
-                    ),
-                    title: const Text('Fecha'),
-                    subtitle: Text(
-                      '${nuevaFecha.day}/${nuevaFecha.month}/${nuevaFecha.year}',
-                    ),
-                    trailing: const Icon(Icons.edit),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: nuevaFecha,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 60)),
-                      );
-                      if (picked != null) {
-                        setStateDialog(() {
-                          nuevaFecha = picked;
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  ListTile(
-                    leading: const Icon(Icons.access_time, color: Colors.blue),
-                    title: const Text('Hora'),
-                    subtitle: Text(nuevaHora),
-                    trailing: const Icon(Icons.edit),
-                    onTap: () {
-                      _mostrarSelectorHora(context, (hora) {
-                        setStateDialog(() {
-                          nuevaHora = hora;
-                        });
-                      });
-                    },
-                  ),
-                ],
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setStateDialog) => AlertDialog(
+          title: const Text('Cambiar Fecha y Hora'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                title: const Text('Fecha'),
+                subtitle: Text('${nuevaFecha.day}/${nuevaFecha.month}/${nuevaFecha.year}'),
+                trailing: const Icon(Icons.edit),
+                onTap: () async {
+                  final hoy = DateTime.now();
+                  final inicio = DateTime(hoy.year, hoy.month, hoy.day);
+                  final fin = inicio.add(const Duration(days: 60));
+                  final inicial = nuevaFecha.isBefore(inicio)
+                      ? inicio
+                      : (nuevaFecha.isAfter(fin) ? fin : nuevaFecha);
+                  final picked = await showDatePicker(
+                    context: dialogContext,
+                    initialDate: inicial,
+                    firstDate: inicio,
+                    lastDate: fin,
+                  );
+                  if (!dialogContext.mounted) return;
+                  if (picked != null) {
+                    setStateDialog(() => nuevaFecha = picked);
+                  }
+                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await _firestoreService.updateCita(cita['id'], {
-                        'fecha': Timestamp.fromDate(nuevaFecha),
-                        'hora': nuevaHora,
-                      });
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        _mostrarMensajeExito('Fecha y hora actualizadas');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        Navigator.pop(context); // Close dialog
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.access_time, color: Colors.blue),
+                title: const Text('Hora'),
+                subtitle: Text(nuevaHora),
+                trailing: const Icon(Icons.edit),
+                onTap: () => _mostrarSelectorHora(dialogContext, (hora) {
+                  if (dialogContext.mounted) {
+                    setStateDialog(() => nuevaHora = hora);
+                  }
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_operationInProgress) return;
+                _operationInProgress = true;
+                try {
+                  await _firestoreService.updateCita(cita['id'] as String, {
+                    'fecha': Timestamp.fromDate(_fechaUtc(nuevaFecha)),
+                    'hora': nuevaHora,
+                  });
+                  if (!mounted) return;
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  _mostrarMensajeExito('Fecha y hora actualizadas');
+                } catch (e) {
+                  if (mounted) _mostrarError('No se pudo cambiar la cita: $e');
+                } finally {
+                  _operationInProgress = false;
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -482,92 +482,99 @@ class _MiCitaPageState extends State<MiCitaPage> {
     );
   }
 
-  // Cambiar servicio
-  void _cambiarServicio(Map<String, dynamic> cita) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
+  // Actualiza el servicio de la misma cita; no crea una cita adicional.
+  Future<void> _cambiarServicio(Map<String, dynamic> cita) async {
+    try {
+      final snapshot = await _firestoreService.getDepartamentos().first;
+      if (!mounted) return;
+      final departamento = cita['departamento'] as String;
+      final docs = snapshot.docs.where((doc) => doc.id == departamento);
+      if (docs.isEmpty) {
+        _mostrarError('El departamento ya no existe.');
+        return;
+      }
+      final servicios = List<String>.from(docs.first.data()['tramites'] ?? []);
+      if (servicios.isEmpty) {
+        _mostrarError('No hay servicios disponibles para este departamento.');
+        return;
+      }
+      final servicio = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
           title: const Text('Cambiar Servicio'),
-          content: const Text(
-            '¿Deseas reagendar esta cita con un servicio diferente?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
+          children: servicios.map((nombre) => SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, nombre),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(nombre),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CitaPage()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Reagendar'),
-            ),
+          )).toList(),
+        ),
+      );
+      if (!mounted || servicio == null || servicio == cita['servicio']) return;
+      if (_operationInProgress) return;
+      _operationInProgress = true;
+      try {
+        await _firestoreService.updateCita(cita['id'] as String, {'servicio': servicio});
+        if (mounted) _mostrarMensajeExito('Servicio actualizado');
+      } finally {
+        _operationInProgress = false;
+      }
+    } catch (e) {
+      if (mounted) _mostrarError('No se pudo cambiar el servicio: $e');
+    }
+  }
+
+  // Cancela la cita y libera su horario mediante la transacción del servicio.
+  void _cancelarCita(Map<String, dynamic> cita) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Cancelar Cita'),
           ],
-        );
-      },
+        ),
+        content: const Text(
+          '¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('No, mantener'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_operationInProgress) return;
+              _operationInProgress = true;
+              try {
+                await _firestoreService.updateCitaStatus(cita['id'] as String, 'Cancelada');
+                if (!mounted) return;
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                _mostrarMensajeExito('Cita cancelada exitosamente');
+              } catch (e) {
+                if (mounted) _mostrarError('No se pudo cancelar la cita: $e');
+              } finally {
+                _operationInProgress = false;
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
     );
   }
 
-  // Cancelar cita
-  void _cancelarCita(Map<String, dynamic> cita) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: const [
-              Icon(Icons.warning, color: Colors.orange),
-              SizedBox(width: 10),
-              Text('Cancelar Cita'),
-            ],
-          ),
-          content: const Text(
-            '¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('No, mantener'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // _mostrarMensajeExito('Cita cancelada exitosamente'); // Move to after success
-                try {
-                  await _firestoreService.updateCitaStatus(
-                    cita['id'],
-                    'Cancelada',
-                  );
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    _mostrarMensajeExito('Cita cancelada exitosamente');
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Sí, cancelar'),
-            ),
-          ],
-        );
-      },
+  void _mostrarError(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
     );
   }
 

@@ -41,15 +41,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBos9lfAMAq9CgpExy4HUXwYMgixcmH2PQ',
-    appId: '1:756004166796:web:57596fc0440d239949afa9',
-    messagingSenderId: '756004166796',
-    projectId: 'flutter-app-2bade',
-    authDomain: 'flutter-app-2bade.firebaseapp.com',
-    storageBucket: 'flutter-app-2bade.firebasestorage.app',
-    measurementId: 'G-F9FY1YGXZX',
+    apiKey: 'AIzaSyCVI-xgYSyMm_jLmOf_lCUnz9NSltYt7iE',
+    appId: '1:1034381767484:web:dfc023b83b543974fbe439',
+    messagingSenderId: '1034381767484',
+    projectId: 'citatec-dev',
+    authDomain: 'citatec-dev.firebaseapp.com',
+    storageBucket: 'citatec-dev.firebasestorage.app',
   );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBi_DfQgAn5b8BTsJAgbeJ8XZEMW1RRNhE',
     appId: '1:756004166796:android:e5db89bcbddbf4ed49afa9',

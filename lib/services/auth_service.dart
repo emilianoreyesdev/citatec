@@ -1,61 +1,79 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Sign in with email and password
+  // Iniciar sesión con correo y contraseña.
   Future<UserCredential?> signInWithEmailAndPassword(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
+      final UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
       return result;
     } catch (e) {
-      print(e.toString());
+      debugPrint('Error al iniciar sesión: $e');
       rethrow;
     }
   }
 
-  // Register with email and password
+  // Registrar un usuario con correo y contraseña.
   Future<UserCredential?> registerWithEmailAndPassword(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+      final UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
       return result;
     } catch (e) {
-      print(e.toString());
+      debugPrint('Error al registrar usuario: $e');
       rethrow;
     }
   }
 
-  // Sign out
+  // Cerrar sesión.
   Future<void> signOut() async {
     try {
-      return await _auth.signOut();
+      await _auth.signOut();
     } catch (e) {
-      print(e.toString());
-      return null;
+      debugPrint('Error al cerrar sesión: $e');
+      rethrow;
     }
   }
 
-  // Get current user
+  // Obtener el usuario autenticado.
   User? get currentUser {
     return _auth.currentUser;
   }
 
-  // Get User Role
+  // Obtener el rol del usuario desde Firestore.
   Future<String> getUserRole(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
+
       if (doc.exists) {
-        return doc.data()?['rol'] ?? 'user';
+        final data = doc.data();
+        final rol = data?['rol'];
+
+        if (rol is String && rol.isNotEmpty) {
+          return rol;
+        }
       }
     } catch (e) {
-      print('Error obteniendo rol: $e');
+      debugPrint('Error obteniendo rol: $e');
     }
-    return 'user'; 
+
+    return 'user';
   }
 }

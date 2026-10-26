@@ -1,3 +1,5 @@
+import 'package:citatec/services/auth_service.dart';
+import 'package:citatec/pages/login_page.dart';
 import 'package:citatec/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -34,8 +36,26 @@ class _AdminPageState extends State<AdminPage> {
           ),
           actions: [
             IconButton(
-              onPressed: () {
-                Navigator.of(context).pop();
+              tooltip: 'Cerrar sesión',
+              onPressed: () async {
+                try {
+                  await AuthService().signOut();
+                  if (!context.mounted) return;
+
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+                    (route) => false,
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo cerrar sesión. Inténtalo nuevamente.',
+                      ),
+                    ),
+                  );
+                }
               },
               icon: Icon(
                 Icons.logout,
@@ -58,6 +78,7 @@ class _AdminPageState extends State<AdminPage> {
             child: Text("Error al cargar citas: ${snapshot.error}"),
           );
         }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -74,25 +95,35 @@ class _AdminPageState extends State<AdminPage> {
           itemBuilder: (context, index) {
             final doc = citas[index];
             final cita = doc.data() as Map<String, dynamic>;
-            final id = doc.id;
-            // Safe data extraction
+
+            // Extracción segura de los datos.
             final user = cita['userName'] ?? 'Usuario desconocido';
+
             DateTime? fecha;
-            if (cita['fecha'] != null) {
+
+            if (cita['fecha'] is Timestamp) {
               fecha = (cita['fecha'] as Timestamp).toDate();
             }
+
             final fechaStr = fecha != null
                 ? "${fecha.day}/${fecha.month}/${fecha.year}"
                 : "Sin fecha";
+
             final hora = cita['hora'] ?? '--:--';
             final departamento = cita['departamento'] ?? 'General';
             final servicio = cita['servicio'] ?? 'Trámite general';
             final estado = cita['estado'] ?? 'Pendiente';
 
-            // Colores por estado (puedes ajustar a tu gusto)
+            // Colores según el estado de la cita.
             Color statusColor = Colors.blue;
-            if (estado == 'Completada') statusColor = Colors.green;
-            if (estado == 'Cancelada') statusColor = Colors.red;
+
+            if (estado == 'Completada') {
+              statusColor = Colors.green;
+            }
+
+            if (estado == 'Cancelada') {
+              statusColor = Colors.red;
+            }
 
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
@@ -106,7 +137,9 @@ class _AdminPageState extends State<AdminPage> {
                   gradient: LinearGradient(
                     colors: [
                       Theme.of(context).colorScheme.surface,
-                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -162,7 +195,7 @@ class _AdminPageState extends State<AdminPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.2),
+                              color: statusColor.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: statusColor),
                             ),
@@ -180,7 +213,6 @@ class _AdminPageState extends State<AdminPage> {
                       const SizedBox(height: 12),
                       const Divider(),
                       const SizedBox(height: 8),
-                      // Details row
                       Row(
                         children: [
                           Icon(
@@ -230,7 +262,7 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildTramitesTab() {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Use parent background
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddDepartamentoDialog(),
         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -245,6 +277,7 @@ class _AdminPageState extends State<AdminPage> {
           if (snapshot.hasError) {
             return Center(child: Text("Error: ${snapshot.error}"));
           }
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -262,6 +295,7 @@ class _AdminPageState extends State<AdminPage> {
               final doc = deptos[index];
               final deptName = doc.id;
               final data = doc.data() as Map<String, dynamic>;
+
               final tramites = List<String>.from(data['tramites'] ?? []);
 
               return Card(
@@ -276,7 +310,7 @@ class _AdminPageState extends State<AdminPage> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.2),
+                      ).colorScheme.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -295,17 +329,14 @@ class _AdminPageState extends State<AdminPage> {
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDeleteDepartamento(deptName),
                   ),
-                  shape: const RoundedRectangleBorder(
-                    side: BorderSide.none,
-                  ), // Remove borders
+                  shape: const RoundedRectangleBorder(side: BorderSide.none),
                   children: [
-                    // List of tramites
                     ...tramites.map(
                       (tramite) => ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 72,
                           right: 16,
-                        ), // Align with title
+                        ),
                         title: Text(tramite),
                         trailing: IconButton(
                           icon: const Icon(
@@ -317,7 +348,6 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                       ),
                     ),
-                    // Add tramite button
                     ListTile(
                       contentPadding: const EdgeInsets.only(
                         left: 72,
@@ -356,10 +386,10 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // --- Dialogs (Styled) ---
-
+  // Diálogo para agregar un departamento.
   void _showAddDepartamentoDialog() {
     final controller = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -378,7 +408,7 @@ class _AdminPageState extends State<AdminPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
+              if (controller.text.trim().isNotEmpty) {
                 firestoreService.addDepartamento(controller.text.trim());
                 Navigator.pop(context);
               }
@@ -394,8 +424,10 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // Diálogo para agregar un trámite.
   void _showAddTramiteDialog(String deptoId) {
     final controller = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -414,7 +446,7 @@ class _AdminPageState extends State<AdminPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
+              if (controller.text.trim().isNotEmpty) {
                 firestoreService.addTramite(deptoId, controller.text.trim());
                 Navigator.pop(context);
               }
@@ -430,6 +462,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // Confirmar eliminación de departamento.
   void _confirmDeleteDepartamento(String deptId) {
     showDialog(
       context: context,
